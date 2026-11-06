@@ -2,6 +2,15 @@ import cv2 as cv
 import sys
 from pathlib import Path
 
+'''
+When I download my datasets from Roboflow, all of the images are rotated 90 degrees counterclockwise. 
+Pretty sure it has something to do with the fact that iPhones store photos rotated 90 degrees, and
+for some reason downloading the dataset causes the photos to get stuck like that.
+
+So now I run this script whenever I download my data from Roboflow
+'''
+
+
 PARENT_DIR = Path(__file__).resolve().parent.parent
 data_types = ["test", "train", "valid"]
 
