@@ -11,5 +11,7 @@ if len(sys.argv) < 1:
   sys.exit()
 
 model = YOLO("yolo26n.pt")
-model.train(data=f"{PARENT_DIR}/data/{sys.argv[1]}/data.yaml", epochs=100, imgsz=1280, batch=4, device="mps", workers=0)
-
+try: 
+  model.train(data=f"{PARENT_DIR}/data/{sys.argv[1]}/data.yaml", epochs=100, imgsz=1280, batch=4, device="mps", workers=0)
+except: 
+  print(f"{PARENT_DIR}/data/{sys.argv[1]}/data.yaml not found or setup incorrectly")
