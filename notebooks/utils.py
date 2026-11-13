@@ -45,7 +45,7 @@ def is_kinda_vertical(line):
    return abs(y2 - y1) > abs(x2 - x1)
 
 def write_image(image, name): 
-   cv.imwrite(f"../data/processed/{name}.jpeg", image)
+   cv.imwrite(f"../data/testing/{name}.jpeg", image)
 
 def draw_points(image, point_list): 
    for point in point_list: 
