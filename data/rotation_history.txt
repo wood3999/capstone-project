@@ -1,0 +1,5 @@
+# DO NOT EDIT 
+# I have a script that rotates my training data (see rotate_images.py). This script should only run once per dataset I download 
+# So, once a dataset has been rotated, I write the directory name here so I know to not rotate it again. 
+50_Images.yolo26
+10_Images.yolo26
