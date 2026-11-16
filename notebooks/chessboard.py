@@ -20,10 +20,10 @@ labels = DBSCAN(eps=20, min_samples=1).fit_predict(pts)
 clustered_corners = np.array([pts[labels == k].mean(axis=0) for k in np.unique(labels)])
 
 class Chessboard: 
-  board = [[(0, 0) for _ in range(9)] for _ in range(9)]
 
   def __init__(self, most_common_dist):
     self.most_common_dist = most_common_dist
+    self.board = [[(0, 0) for _ in range(9)] for _ in range(9)]
 
 
   def print(self): 
@@ -86,12 +86,14 @@ class Chessboard:
         break
 
       if abs(point[0] - self.board[row_index][column_index][0]) <= 0.4 * self.most_common_dist: 
-        self.print()
-        print("Points too close together (potentially duplicates?)")
-        print(point, self.board[row_index][column_index])
-        sys.exit()
-      else:
-        continue
+        if int(point[0]) == int(self.board[row_index][column_index][0]) and int(point[1]) == int(self.board[row_index][column_index][1]): 
+          break
+        else:
+          self.print()
+          print("Points too close together (potentially duplicates?)")
+          print(point, self.board[row_index][column_index])
+          sys.exit()
+   
 
       if point[0] < self.board[row_index][column_index][0]: 
         temp = point
@@ -101,6 +103,7 @@ class Chessboard:
       column_index += 1
 
 
+  # currently doing the simple method. The more advanced method could be to do an average of distance to all neighbors
   def imputate_points(self): 
     self.lowest_x, self.lowest_y = self.board[0][0]
     self.highest_y = 0
@@ -112,42 +115,104 @@ class Chessboard:
           self.lowest_x = min(self.lowest_x, self.board[row][column][0])
           self.highest_x = max(self.highest_x, self.board[row][column][0])
 
+    self.__find_avg_x_disp()
     for row in range(9) :
-      self.__imputate_row(row)
+      self.__shift_to_proper_spots(row)
+      # self.__imputate_row(row)
+
+
+  def __shift_to_proper_spots(self, row_index): 
+    starting_index = 0 
+    first = 0
+    while starting_index < 8: 
+      times_run = 0
+      if first == 0: 
+        distance = self.board[row_index][starting_index][0] - self.lowest_x
+      elif self.board[row_index][starting_index][0] == 0: 
+        distance = 0
+      else: 
+        distance = self.board[row_index][starting_index + 1][0] - self.board[row_index][starting_index][0]
+
+      while distance - self.most_common_dist * (times_run + first) > 0.4 * self.most_common_dist: 
+        times_run += 1
+        # If can't shift right w/o losing a point 
+        if self.board[row_index][8][0] != 0: 
+          print("Too many data points in row:", row_index)
+          sys.exit()
+
+        # shifting everything to the right
+        for x in range (8 - starting_index):
+          self.board[row_index][8 - x] = self.board[row_index][8 - x - 1]
+
+        self.board[row_index][starting_index + (times_run * first)] = (0,0)
+
+      starting_index += 1
+      if first == 0: 
+        starting_index = 0 
+      first = 1
+
+  def __find_avg_x_disp(self): 
+    column_index = 0
+    num_existing = 0
+    most_existing = 0
+
+    # find column with most filled in values 
+    for column in range(9): 
+      for row in range(9): 
+        if self.board[row][column][0] != 0:
+          num_existing += 1
+      if num_existing > most_existing: 
+        most_existing = num_existing
+        column_index = column
+
+    displacement = []
+    for x in range(1, 9): 
+      if self.board[x][column_index][0] != 0 and self.board[x - 1][column_index][0] != 0: 
+        displacement.append(self.board[x][column_index][0] - self.board[x-1][column_index][0]) 
+
+    if len(displacement) == 0: 
+      self.avg_x_disp = 0
+    else: 
+      self.avg_x_disp = sum(displacement) / len(displacement)
 
 
   def __imputate_row(self, row_index): 
-    while self.board[row_index][0][0] - self.lowest_x > 0.4 * self.most_common_dist:
-      if self.board[row_index][8][0] != 0: 
-        print("Row", row_index, "already full! Clean input data")
-        sys.exit()
-      # shifting existing points to the right 
-      for x in range (8): 
-        self.board[row_index][8 - x] = self.board[row_index][8 - x - 1]
-
-      # creating new point in slot 0. X value is slot 1's x - most_common_dist. Y value is slot 1's Y + the difference between slot 1 and slot 2's Y values (to follow the slope)  
-      self.board[row_index][0][0] = self.board[row_index][1][0] - self.most_common_dist
-      self.board[row_index][0][1] = self.board[row_index][1][1] + (self.board[row_index][1][1] - self.board[row_index][2][1])
-
     last_filled_spot = 0
+    first_filled_spot
+    displacement = []
+    
     for x in range(9):
       if self.board[row_index][x][0] != 0: 
         last_filled_spot = x
+        if first_filled_spot is None:
+          first_filled_spot = x
+        if self.board[row_index][x-1][1] != 0 and self.board[row_index][x][1] != 0:  
+          displacement.append(self.board[row_index][x-1][1] - self.board[row_index][x][1])
+
+    if len(displacement) > 0: 
+      avg_y_disp = sum(displacement) / len(displacement)
+    else: 
+      avg_y_disp = 0
 
     while last_filled_spot < 8: 
-      # same logic as previous imputation
-      x = self.board[row_index][last_filled_spot][0] + self.most_common_dist
-      y = self.board[row_index][last_filled_spot][1] + (self.board[row_index][last_filled_spot][1] - self.board[row_index][last_filled_spot - 1][1])
+      x = self.board[row_index][last_filled_spot][0] + self.most_common_dist + self.avg_x_disp
+      y = self.board[row_index][last_filled_spot][1] + avg_y_disp
       self.board[row_index][last_filled_spot + 1] = (x, y)
       last_filled_spot += 1
+
+    while first_filled_spot > 0: 
+      x = self.board[row_index][first_filled_spot][0] + self.most_common_dist + self.avg_x_disp
+      y = self.board[row_index][first_filled_spot][1] + avg_y_disp  
+      self.board[row_index][first_filled_spot - 1] = (x, y)
+      first_filled_spot -= 1
 
 
   def get_corners(self): 
     return [self.board[0][0], self.board[0][8], self.board[8][8], self.board[8][0]]
 
 
-test = Chessboard(MCD)
-test.add_points(clustered_corners)
-test.imputate_points()
-test.visualize_board()
-print(test.get_corners())
+# test = Chessboard(MCD)
+# test.add_points(clustered_corners)
+# test.imputate_points()
+# test.visualize_board()
+
