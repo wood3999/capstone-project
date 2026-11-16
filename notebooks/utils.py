@@ -1,4 +1,5 @@
 import cv2 as cv
+import numpy as np 
 
 def find_line_intersection(line1, line2):
   x1, y1, x2, y2 = map(float, line1)
@@ -50,3 +51,6 @@ def write_image(image, name):
 def draw_points(image, point_list): 
    for point in point_list: 
       cv.circle(image, (int(point[0]), int(point[1])), 15, (0, 0, 255), -1) 
+
+def distance_to(point_1, point_2): 
+  return np.hypot(abs(point_1[0] - point_2[0]), abs(point_1[1] - point_2[1]))
