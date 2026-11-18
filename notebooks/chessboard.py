@@ -1,13 +1,16 @@
 import sys
+import cv2 as cv
 import numpy as np
 from sklearn.cluster import DBSCAN
+from utils import draw_points
+from utils import write_image
 
 '''
 Once I've processed a photo of a chessboard, it's likely that not all of the corners were picked up. So, this class 
 contains the logic required to reconstruct a full grid of points that makes up an 8x8 chessboard, given a partial/incomplete set of points 
 
 I am assuming the input contains at least one point from each of the board's edges. Otherwise it would be a guessing game 
-(if I only have enough points to define a 8x7 grid, in my current implementation there's no way to know if the missing column would be on the left or right) 
+(if I only have enough points to define a 8x7 grid, in my current implementation there's no way to know if the missing column/row would be on the left or right) 
 
 '''
 
@@ -23,7 +26,7 @@ class Chessboard:
 
   def __init__(self, most_common_dist):
     self.most_common_dist = most_common_dist
-    self.board = [[(0, 0) for _ in range(9)] for _ in range(9)]
+    self.board = [[(None, None) for _ in range(9)] for _ in range(9)]
 
 
   def print(self): 
@@ -36,7 +39,7 @@ class Chessboard:
   def visualize_board(self): 
     for x in range(9): 
       for y in range(9): 
-        if self.board[x][y][0] == 0: 
+        if self.board[x][y][0] == None: 
           print("0", end="")
         else: 
           print("x", end="")
@@ -51,7 +54,7 @@ class Chessboard:
   def __find_row(self, point) -> int: 
     row_index = 0
     while row_index < 9: 
-      if self.board[row_index][0][1] == 0:
+      if self.board[row_index][0][1] == None:
         return row_index
 
       if abs(point[1] - self.board[row_index][0][1]) <= 0.4 * self.most_common_dist: 
@@ -67,7 +70,7 @@ class Chessboard:
 
   def __row_juggle(self, stop_index): 
     bottom = 8
-    if self.board[bottom][0][0] != 0:
+    if self.board[bottom][0][0] != None:
       print("Chessboard overflowing, input data must be cleaned more!")
       sys.exit()
 
@@ -75,13 +78,13 @@ class Chessboard:
       self.board[bottom] = self.board[bottom - 1]
       bottom -= 1
 
-    self.board[stop_index] = [(0,0) for _ in range(9)]
+    self.board[stop_index] = [(None, None) for _ in range(9)]
 
 
   def __insert_in_row(self, point, row_index): 
     column_index = 0
     while column_index < 9: 
-      if self.board[row_index][column_index][0] == 0: 
+      if self.board[row_index][column_index][0] == None: 
         self.board[row_index][column_index] = point
         break
 
@@ -94,7 +97,6 @@ class Chessboard:
           print(point, self.board[row_index][column_index])
           sys.exit()
    
-
       if point[0] < self.board[row_index][column_index][0]: 
         temp = point
         point = self.board[row_index][column_index]
@@ -104,115 +106,202 @@ class Chessboard:
 
 
   # currently doing the simple method. The more advanced method could be to do an average of distance to all neighbors
-  def imputate_points(self): 
+  def impute_points(self): 
     self.lowest_x, self.lowest_y = self.board[0][0]
     self.highest_y = 0
     self.highest_x = 0
 
     for row in range(9): 
       for column in range(9): 
-        if self.board[row][column][0] != 0: 
+        if self.board[row][column][0] != None: 
           self.lowest_x = min(self.lowest_x, self.board[row][column][0])
           self.highest_x = max(self.highest_x, self.board[row][column][0])
 
-    self.__find_avg_x_disp()
     for row in range(9) :
       self.__shift_to_proper_spots(row)
-      # self.__imputate_row(row)
 
+    self.__find_avg_displacements()
+
+    for row in range(9): 
+      for column in range(9): 
+        if self.board[row][column][0] == None: 
+          self.__impute_point(row, column)
+
+    # The old way of doing it: 
+    # for row in range(9): 
+    #   self.__impute_row(row) 
+
+  
+  def __impute_point(self, row, column): 
+    nearest_col_index = self.__find_closest_horizontal(row, column) 
+    nearest_row_index = self.__find_closest_vertical(row, column)
+
+    if nearest_col_index == None and nearest_row_index == None: 
+      self.__impute_row(row) 
+    else: 
+      if nearest_col_index is None or abs(nearest_row_index - row) <= abs(nearest_col_index - column): 
+        x = self.board[nearest_row_index][column][0] + (self.avg_x_disp * (row - nearest_row_index))
+        y = self.board[nearest_row_index][column][1] + (self.most_common_dist * (row - nearest_row_index)) + (self.avg_y_disp * (row - nearest_row_index))
+      else: 
+        x = self.board[row][nearest_col_index][0] + (self.most_common_dist * (column - nearest_col_index)) + (self.avg_x_disp * (column - nearest_col_index))
+        y = self.board[row][nearest_col_index][1] + (self.avg_y_disp * (column - nearest_col_index))
+      self.board[row][column] = (x,y) 
+
+
+  def __find_closest_vertical(self, row, column) -> int: 
+    up = row - 1
+    down = row + 1
+    while True:
+      if up >= 0: 
+        if self.board[up][column][0] != None: 
+          row_index = up 
+          break
+      if down < 9: 
+        if self.board[down][column][0] != None: 
+          row_index = down
+          break
+      down += 1
+      up -= 1
+      if up < 0 and down > 8: 
+        row_index = None 
+        break 
+    return row_index
+
+
+  def __find_closest_horizontal(self, row, column) -> int: 
+    left = column - 1
+    right = column + 1
+    while True:
+      if left >= 0: 
+        if self.board[row][left][0] != None: 
+          col_index = left 
+          break
+      if right < 9: 
+        if self.board[row][right][0] != None: 
+          col_index = right
+          break
+      right += 1
+      left -= 1
+      if left < 0 and right > 8: 
+        col_index = None 
+        break 
+    return col_index
+ 
 
   def __shift_to_proper_spots(self, row_index): 
     starting_index = 0 
     first = 0
+
     while starting_index < 8: 
       times_run = 0
       if first == 0: 
         distance = self.board[row_index][starting_index][0] - self.lowest_x
-      elif self.board[row_index][starting_index][0] == 0: 
+      elif self.board[row_index][starting_index][0] == None or self.board[row_index][starting_index + 1][0] == None: 
         distance = 0
       else: 
         distance = self.board[row_index][starting_index + 1][0] - self.board[row_index][starting_index][0]
 
       while distance - self.most_common_dist * (times_run + first) > 0.4 * self.most_common_dist: 
-        times_run += 1
         # If can't shift right w/o losing a point 
-        if self.board[row_index][8][0] != 0: 
-          print("Too many data points in row:", row_index)
+        if self.board[row_index][8][0] != None: 
+          print("Too many points in row:", row_index)
           sys.exit()
 
         # shifting everything to the right
         for x in range (8 - starting_index):
           self.board[row_index][8 - x] = self.board[row_index][8 - x - 1]
 
-        self.board[row_index][starting_index + (times_run * first)] = (0,0)
+        times_run += 1
+        self.board[row_index][starting_index + (times_run * first)] = (None, None)
 
       starting_index += 1
       if first == 0: 
         starting_index = 0 
       first = 1
 
-  def __find_avg_x_disp(self): 
+  def __find_avg_displacements(self): 
     column_index = 0
-    num_existing = 0
-    most_existing = 0
+    row_index = 0
+    row_most_existing = 0
+    col_most_existing = 0
 
     # find column with most filled in values 
     for column in range(9): 
+      col_current_existing = 0
+      row_current_existing = 0
+
       for row in range(9): 
-        if self.board[row][column][0] != 0:
-          num_existing += 1
-      if num_existing > most_existing: 
-        most_existing = num_existing
+        if self.board[row][column][0] != None:
+          col_current_existing += 1
+        if self.board[column][row][1] != None: 
+          row_current_existing += 1
+
+      if col_current_existing > col_most_existing: 
+        col_most_existing = col_current_existing
         column_index = column
 
-    displacement = []
-    for x in range(1, 9): 
-      if self.board[x][column_index][0] != 0 and self.board[x - 1][column_index][0] != 0: 
-        displacement.append(self.board[x][column_index][0] - self.board[x-1][column_index][0]) 
+      if row_current_existing > row_most_existing: 
+        row_most_existing = row_current_existing
+        row_index = row
 
-    if len(displacement) == 0: 
+    x_disp = []
+    y_disp = []
+    for x in range(1, 9): 
+      if self.board[x][column_index][0] != None and self.board[x - 1][column_index][0] != None:
+        x_disp.append(self.board[x][column_index][0] - self.board[x-1][column_index][0]) 
+      if self.board[row_index][x][1] != None and self.board[row_index][x-1][1] != None: 
+        y_disp.append(self.board[row_index][x][1] - self.board[row_index][x-1][1])
+
+    if len(x_disp) == 0: 
       self.avg_x_disp = 0
     else: 
-      self.avg_x_disp = sum(displacement) / len(displacement)
+      self.avg_x_disp = sum(x_disp) / len(x_disp)
 
-
-  def __imputate_row(self, row_index): 
-    last_filled_spot = 0
-    first_filled_spot
-    displacement = []
-    
-    for x in range(9):
-      if self.board[row_index][x][0] != 0: 
-        last_filled_spot = x
-        if first_filled_spot is None:
-          first_filled_spot = x
-        if self.board[row_index][x-1][1] != 0 and self.board[row_index][x][1] != 0:  
-          displacement.append(self.board[row_index][x-1][1] - self.board[row_index][x][1])
-
-    if len(displacement) > 0: 
-      avg_y_disp = sum(displacement) / len(displacement)
+    if len(y_disp) == 0: 
+      self.avg_y_disp = 0
     else: 
-      avg_y_disp = 0
+      self.avg_y_disp = sum(y_disp) / len(y_disp)
 
-    while last_filled_spot < 8: 
-      x = self.board[row_index][last_filled_spot][0] + self.most_common_dist + self.avg_x_disp
-      y = self.board[row_index][last_filled_spot][1] + avg_y_disp
-      self.board[row_index][last_filled_spot + 1] = (x, y)
-      last_filled_spot += 1
+# i do this row by row. Instead I could do this point by point, picking that point's nearest neighbor to impute it 
+  def __impute_row(self, row_index): 
+    for x in range(9): 
+      if self.board[row_index][x][0] != None:
+        first_filled_spot = x
+        break
 
     while first_filled_spot > 0: 
-      x = self.board[row_index][first_filled_spot][0] + self.most_common_dist + self.avg_x_disp
-      y = self.board[row_index][first_filled_spot][1] + avg_y_disp  
+      x = self.board[row_index][first_filled_spot][0] - self.most_common_dist + self.avg_x_disp
+      y = self.board[row_index][first_filled_spot][1] + self.avg_y_disp  
       self.board[row_index][first_filled_spot - 1] = (x, y)
       first_filled_spot -= 1
+
+    for index in range(8): 
+      if self.board[row_index][index + 1][0] == None: 
+        x = self.board[row_index][index][0] + self.most_common_dist + self.avg_x_disp
+        y = self.board[row_index][index][1] + self.avg_y_disp
+        self.board[row_index][index + 1] = (x,y)
 
 
   def get_corners(self): 
     return [self.board[0][0], self.board[0][8], self.board[8][8], self.board[8][0]]
 
 
+  def get_points(self): 
+    points = [] 
+    for row in range(9): 
+      for column in range(9): 
+        if self.board[row][column][0] != None:
+          points.append(self.board[row][column])
+
+    return points
+
+
+# image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/testing/board_images/empty_board.jpeg")
 # test = Chessboard(MCD)
 # test.add_points(clustered_corners)
-# test.imputate_points()
+# test.impute_points()
 # test.visualize_board()
+
+# draw_points(image, test.get_points())
+# write_image(image, "impute")
 
