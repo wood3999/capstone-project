@@ -17,7 +17,7 @@ DISTANCE_BETWEEN_POINTS_THRESHOLD = 30
 DISTANCE_THRESHOLD = 15
 
 # How far away from most_common_dist the distance between two points can be 
-CLOSENESS_TO_VERIFIED_POINT = 10
+CLOSENESS_TO_VERIFIED_POINT = 30
 
 # What a point must score in order to be "verified". 
 # A point's score is the distance to the four nearest neighbors, - most_common_dist, averaged 
@@ -29,20 +29,12 @@ INITIAL_VERIFICATION_SCORE_REQUIREMENT = 80
 # Score
 def main(): 
   subdirectories = ["train", "test", "valid"]
-  debugging = False
-
-  if debugging: 
-    debug()
-    sys.exit()
 
   if len(sys.argv) < 2: 
-    print("Enter the directory containing the photos as the command line argument")
-    for directory in subdirectories: 
-      for file in Path(f"/Users/tatewoodward/Coding/Projects/capstone-project/data/50_Images.yolo26/{directory}/images").iterdir(): 
-        print(f"{file.name}")
-        if (file.name.endswith(".jpg")):
-          image = cv.imread(f"/Users/tatewoodward/Coding/Projects/capstone-project/data/50_Images.yolo26/{directory}/images/{file.name}")
-          process_photo(image, file_name=file.name)
+    print("Debugging - Enter the directory containing the photos as the command line argument to run on a dataset")
+    image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/50_Images.yolo26/train/images/IMG_6316_jpeg.rf.17bb5a3deb05cf0b1b67ca8d481b02c9.jpg")
+    process_photo(image, file_name="test")
+    sys.exit()
 
   for directory in subdirectories: 
     for file in Path(f"../data/{sys.argv[1]}/{directory}/images").iterdir(): 
@@ -50,10 +42,8 @@ def main():
       if (file.name.endswith(".jpg")):
         image = cv.imread(f"../data/{sys.argv[1]}/{directory}/images/{file.name}")
         process_photo(image, file_name=file.name)
+  return None
 
-def debug(): 
-  image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/50_Images.yolo26/train/images/IMG_6328_jpeg.rf.364fc8b38e1ba4e682815205b4beb44c.jpg")
-  process_photo(image, file_name="test")
 
 def process_photo(image, file_name): 
   kernel_size = 9
@@ -63,10 +53,15 @@ def process_photo(image, file_name):
   lines = cv.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=20, maxLineGap=150)
 
   clustered_corners = find_points_from_lines(lines)
- 
   most_common_dist = find_most_common_dist(clustered_corners) 
-
   filtered_corners = []
+
+  # temp = image.copy()
+  # draw_points(temp, clustered_corners)
+  # cv.line(temp, (int(clustered_corners[15][0]), int(clustered_corners[15][1])), (int(clustered_corners[15][0] + most_common_dist), 
+  #                                                                                int(clustered_corners[15][1])), (255, 0, 0), 10)
+  # write_image(temp, "clustered")
+
 
   # filtering the corners by how many good neighbors they have 
   # adds a point to filtered_corners if at least two neighbors are within most_common_distance +/- the buffer 
@@ -74,11 +69,14 @@ def process_photo(image, file_name):
     num_times = 0
     for point_2 in clustered_corners: 
       if horizontal_or_vertical(point_1, point_2):
-        if (point_1[0] != point_2[0] and point_1[1] != point_2[1]):
-          if within_threshold(distance_to(point_1, point_2), most_common_dist, DISTANCE_THRESHOLD): 
-            num_times += 1
-            if num_times == 2: 
-              filtered_corners.append(point_1)
+        if within_threshold(distance_to(point_1, point_2), most_common_dist, DISTANCE_THRESHOLD): 
+          num_times += 1
+          if num_times == 2: 
+            filtered_corners.append(point_1)
+
+  # filtered = image.copy()
+  # draw_points(filtered, filtered_corners)
+  # write_image(filtered, "filtered")
 
   verified_points = []
 
@@ -87,30 +85,40 @@ def process_photo(image, file_name):
     if score < INITIAL_VERIFICATION_SCORE_REQUIREMENT:
       verified_points.append(point_1) 
 
-  for _ in range (2):
+  length = 0
+
+  while len(verified_points) != length: 
+    length = len(verified_points)
     verified_points = verify_neighbors(verified_points, clustered_corners, most_common_dist)
 
-  draw_points(image, verified_points)
+  # draw_points(image, verified_points)
+  # write_image(image, "verified")
+
+  test = Chessboard(most_common_dist)
+  try: 
+    test.add_points(verified_points)
+    test.impute_points()
+  except: 
+    print("failed to find corners")
+    return None
+
+  draw_points(image, test.get_corners())
   write_image(image, f"../processed/testing-{file_name}")
 
 def verify_neighbors(verified_points, unverified_points, most_common_dist): 
-  already_added = []
   verified_and_buddies = verified_points.copy()
   for point_1 in verified_points:
-    for index, point_2 in enumerate(unverified_points):
-      if index not in already_added: 
-        if within_threshold(distance_to(point_1, point_2), most_common_dist, CLOSENESS_TO_VERIFIED_POINT) and horizontal_or_vertical(point_1, point_2): 
-          skip = False
-          for point_3_index, point_3 in enumerate(verified_and_buddies):
-            if distance_to(point_2, point_3) <= 0.4 * most_common_dist: 
-              if calculate_score(point_2, verified_and_buddies, most_common_dist) < calculate_score(point_3, verified_and_buddies, most_common_dist):
-                # replacing the current verified point with the lower score point
-                verified_and_buddies[point_3_index] = point_2
-                already_added.append(index)
-              skip = True
-          if not skip: 
-            verified_and_buddies.append(point_2)
-            already_added.append(index) 
+    for point_2 in unverified_points:
+      if within_threshold(distance_to(point_1, point_2), most_common_dist, CLOSENESS_TO_VERIFIED_POINT) and horizontal_or_vertical(point_1, point_2): 
+        skip = False
+        for point_3_index, point_3 in enumerate(verified_and_buddies):
+          if distance_to(point_2, point_3) <= 0.4 * most_common_dist: 
+            if calculate_score(point_2, verified_and_buddies, most_common_dist) < calculate_score(point_3, verified_and_buddies, most_common_dist):
+              # replacing the current verified point with the lower score point
+              verified_and_buddies[point_3_index] = point_2
+            skip = True
+        if not skip: 
+          verified_and_buddies.append(point_2)
 
   return verified_and_buddies
 
