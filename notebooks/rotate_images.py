@@ -28,6 +28,10 @@ with open(f"{PARENT_DIR}/data/rotation_history.txt", "r", encoding="utf-8") as f
     elif line.strip() == sys.argv[1]: 
       rotated = True
 
+# Photos that have gone through the preprocessing pipeline do not need to be rotated!
+if directory_name.contains("Cropped"): 
+  rotated = True
+
 if not rotated: 
   print("Rotating training images")
   for data_type in data_types: 

@@ -21,17 +21,17 @@ model = YOLO("yolo26n.pt")
 try: 
   model.train(data=f"{PARENT_DIR}/data/{sys.argv[1]}/data.yaml",
               epochs=200, 
-              imgsz=1280, 
-              batch=8, 
+              imgsz=640, 
+              batch=16, 
               device="mps", 
               workers=0,
-              hsv_h=0, 
-              hsv_s=0.1, 
-              hsv_v=0.1, 
+              hsv_h=0.1, 
+              hsv_s=0.3, 
+              hsv_v=0.3, 
               translate=0,
-              scale=0.1, 
-              flipud=0.75, 
-              fliplr=0.75,
+              scale=0, 
+              flipud=1, 
+              fliplr=1,
               save_dir=f"{PARENT_DIR}/models/{sys.argv[2]}"
             )
 except: 

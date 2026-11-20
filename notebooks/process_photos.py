@@ -31,7 +31,7 @@ def main():
 
   if len(sys.argv) < 2: 
     print("Debugging - Enter the directory containing the photos as the command line argument to run on a dataset")
-    image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/testing/wood_background/IMG_6400.jpeg")
+    image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/testing/board_images/starting_position.jpeg")
     process_photo(image, file_name="test")
     sys.exit()
 
@@ -41,13 +41,14 @@ def main():
         print(f"{file.name}")
         if (file.name.endswith(".jpg")):
           image = cv.imread(f"../data/{sys.argv[1]}/{directory}/images/{file.name}")
-          process_photo(image, file_name=file.name)
+          
+          process_photo(image, file_name=file.name.removesuffix(".jpeg"))
   else: 
-    for file in Path(f"../data/testing/{sys.argv[1]}").iterdir():
+    for file in Path(f"../data/raw").iterdir():
       print(f"{file.name}")
       if file.name.endswith(".jpg") or file.name.endswith(".jpeg"):
-        image = cv.imread(f"../data/testing/{sys.argv[1]}/{file.name}")
-        process_photo(image, file_name=file.name)
+        image = cv.imread(f"../data/raw/{file.name}")
+        process_photo(image, file_name=file.name.removesuffix(".jpeg"))
   return None
 
 
@@ -98,8 +99,8 @@ def process_photo(image, file_name: str):
     verified_points = verify_neighbors(verified_points, clustered_corners, most_common_dist)
 
   temp = image.copy()
-  # draw_points(temp, verified_points)
-  # write_image(temp, f"verified_{file_name}")
+  draw_points(temp, verified_points)
+  write_image(temp, f"verified_{file_name}")
 
   test = Chessboard(most_common_dist)
   try: 
@@ -109,8 +110,26 @@ def process_photo(image, file_name: str):
     print(err, file_name)
     return None
 
-  draw_points(image, test.get_corners())
-  write_image(image, f"corners-{file_name}")
+  # draw_points(image, test.get_corners())
+  # write_image(image, f"corners-{file_name}")
+
+  write_image(adjust_perspective(image, test.get_corners()), f"../processed/cropped-{file_name}")
+
+def adjust_perspective(image, corners, board=1640, buffer=75):
+  size = board + 2 * buffer
+  low, high = buffer, buffer + board
+
+  src = np.array(corners, dtype=np.float32)
+  dst = np.float32([
+      [low, high], 
+      [high, high], 
+      [high, low], 
+      [low, low],  
+  ])
+
+  matrix = cv.getPerspectiveTransform(src, dst)
+  final_image = cv.warpPerspective(image, matrix, (size, size))
+  return final_image
 
 def verify_neighbors(verified_points: tuple[tuple[float, float]], unverified_points: tuple[tuple[float, float]], most_common_dist: float) -> tuple[tuple[float, float]]: 
   verified_and_buddies = verified_points.copy()
