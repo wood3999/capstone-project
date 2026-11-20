@@ -232,7 +232,7 @@ def calculate_score(point: tuple[float, float], verified_points: tuple[tuple[flo
   else: 
     return sum(score)
 
-def point_by_point(image, points): 
+def point_by_point(image, points: tuple[tuple[float, float]]) -> None: 
   for x, point in enumerate(points): 
     new_image = image.copy()
     cv.circle(new_image, (int(point[0]), int(point[1])), 20, (0, 0, 255), -1) 
