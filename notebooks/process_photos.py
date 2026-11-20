@@ -1,7 +1,7 @@
 import cv2 as cv 
 import numpy as np 
 from sklearn.cluster import DBSCAN
-from utils import draw_points, write_image, is_kinda_vertical, distance_to
+from utils import draw_points, write_image, is_kinda_vertical, distance_to, within_threshold
 from chessboard import Chessboard
 import pandas as pd
 from pathlib import Path
@@ -26,21 +26,27 @@ SCORE_THRESHOLD = 30
 # What a point needs to score according to my scoring function that verifies it as on the chessboard
 INITIAL_VERIFICATION_SCORE_REQUIREMENT = 80
 
-# Score
 def main(): 
   subdirectories = ["train", "test", "valid"]
 
   if len(sys.argv) < 2: 
     print("Debugging - Enter the directory containing the photos as the command line argument to run on a dataset")
-    image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/50_Images.yolo26/train/images/IMG_6316_jpeg.rf.17bb5a3deb05cf0b1b67ca8d481b02c9.jpg")
+    image = cv.imread("/Users/tatewoodward/Coding/Projects/capstone-project/data/testing/wood_background/IMG_6400.jpeg")
     process_photo(image, file_name="test")
     sys.exit()
 
-  for directory in subdirectories: 
-    for file in Path(f"../data/{sys.argv[1]}/{directory}/images").iterdir(): 
+  if sys.argv[1].endswith(".yolo26"): 
+    for directory in subdirectories: 
+      for file in Path(f"../data/{sys.argv[1]}/{directory}/images").iterdir(): 
+        print(f"{file.name}")
+        if (file.name.endswith(".jpg")):
+          image = cv.imread(f"../data/{sys.argv[1]}/{directory}/images/{file.name}")
+          process_photo(image, file_name=file.name)
+  else: 
+    for file in Path(f"../data/testing/{sys.argv[1]}").iterdir():
       print(f"{file.name}")
-      if (file.name.endswith(".jpg")):
-        image = cv.imread(f"../data/{sys.argv[1]}/{directory}/images/{file.name}")
+      if file.name.endswith(".jpg") or file.name.endswith(".jpeg"):
+        image = cv.imread(f"../data/testing/{sys.argv[1]}/{file.name}")
         process_photo(image, file_name=file.name)
   return None
 
@@ -59,8 +65,8 @@ def process_photo(image, file_name):
   # temp = image.copy()
   # draw_points(temp, clustered_corners)
   # cv.line(temp, (int(clustered_corners[15][0]), int(clustered_corners[15][1])), (int(clustered_corners[15][0] + most_common_dist), 
-  #                                                                                int(clustered_corners[15][1])), (255, 0, 0), 10)
-  # write_image(temp, "clustered")
+                                                                                #  int(clustered_corners[15][1])), (255, 0, 0), 10)
+  # write_image(temp, f"clustered-{file_name}")
 
 
   # filtering the corners by how many good neighbors they have 
@@ -91,19 +97,20 @@ def process_photo(image, file_name):
     length = len(verified_points)
     verified_points = verify_neighbors(verified_points, clustered_corners, most_common_dist)
 
-  # draw_points(image, verified_points)
-  # write_image(image, "verified")
+  temp = image.copy()
+  # draw_points(temp, verified_points)
+  # write_image(temp, f"verified_{file_name}")
 
   test = Chessboard(most_common_dist)
   try: 
     test.add_points(verified_points)
     test.impute_points()
-  except: 
-    print("failed to find corners")
+  except RuntimeError as err: 
+    print(err, file_name)
     return None
 
   draw_points(image, test.get_corners())
-  write_image(image, f"../processed/testing-{file_name}")
+  write_image(image, f"corners-{file_name}")
 
 def verify_neighbors(verified_points, unverified_points, most_common_dist): 
   verified_and_buddies = verified_points.copy()
@@ -212,10 +219,8 @@ def find_points_from_lines(hough_lines):
 
   pts = np.asarray(corners)
   labels = DBSCAN(eps=20, min_samples=3).fit_predict(pts)
-  return np.array([pts[labels == k].mean(axis=0) for k in np.unique(labels)])
+  return [tuple(pts[labels == k].mean(axis=0).tolist()) for k in np.unique(labels)]
 
-def within_threshold(distance, target, threshold) -> bool:
-  return distance >= target - threshold and distance <= target + threshold
 
 def calculate_score(point, verified_points, most_common_dist, avg=False) -> float:
   score = []

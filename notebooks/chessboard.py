@@ -2,8 +2,7 @@ import sys
 import cv2 as cv
 import numpy as np
 from sklearn.cluster import DBSCAN
-from utils import draw_points
-from utils import write_image
+from utils import draw_points, write_image, distance_to, within_threshold
 
 '''
 Once I've processed a photo of a chessboard, it's likely that not all of the corners were picked up. So, this class 
@@ -47,6 +46,16 @@ class Chessboard:
 
 
   def add_points(self, points):
+    lowest_point = points[0]
+    index = 0
+    for x, point in enumerate(points):
+      if lowest_point[1] < point[1]: 
+        lowest_point = point
+        index = x
+
+    self.__insert_in_row(lowest_point, 0)
+    points.pop(index)
+      
     for point in points: 
       self.__insert_in_row(point, self.__find_row(point))
 
@@ -57,7 +66,15 @@ class Chessboard:
       if self.board[row_index][0][1] == None:
         return row_index
 
-      if abs(point[1] - self.board[row_index][0][1]) <= 0.4 * self.most_common_dist: 
+      # taking the y value of the potential point and comparing it to the y value of the first point in the row
+      # if within 0.4 * most_common_dist of the row's y, then it belongs to the row. 
+      # if abs(point[1] - self.board[row_index][0][1]) <= 0.4 * self.most_common_dist: 
+      #   return row_index
+
+      # Trying to get a more accurate y estimation for tilted photos by accounting for slope
+      # Approach A: compare to the average Y value of the row, not the first Y value
+      # Approach B (implemented): Find the slope of any horizontal line, and guess where the Y value should land based on how far away the x value is 
+      if within_threshold(point[1], self.__guess_next_points_y(row_index, point), 0.4 * self.most_common_dist): 
         return row_index
 
       if point[1] < self.board[row_index][0][1]: 
@@ -66,13 +83,60 @@ class Chessboard:
 
       row_index += 1
     return row_index - 1
+
+  # guess the next point's placement based on what we know so far
+  def __guess_next_points_y(self, row_index, point) -> float: 
+    dist = None
+   
+    for x in range(9): 
+      if self.board[row_index][x][0] != None: 
+        temp_dist = abs(point[0] - self.board[row_index][x][0])
+        if dist == None or temp_dist < dist: 
+          closest_point_index = x
+          dist = temp_dist
+          if point[1] < self.board[row_index][x][1]: 
+            left = -1
+          else: 
+            left = 1
         
+    # makes assumptions that are only true when all of the points are filled in. Do not use 
+    # self.__find_avg_displacements()
+    est_y_disp = self.__guess_y_disp()
+    est_num_spots_over = round(dist / self.most_common_dist)
+    return self.board[row_index][closest_point_index][1] + (est_num_spots_over * est_y_disp * left)
+
+  def __guess_y_disp(self) -> float: 
+    # first find the row with the most entries so far
+    most_entries = None 
+    most_entries_row = None
+    for row in range(9): 
+      curr_entries = 0
+      for column in range(9): 
+        if self.board[row][column][0] != None: 
+          curr_entries += 1
+      if most_entries == None or curr_entries > most_entries: 
+        most_entries = curr_entries
+        most_entries_row = row
+
+    displacement = []
+    for x in range(1, 9): 
+      if self.board[most_entries_row][x-1][0] != None and self.board[most_entries_row][x][0] != None:
+        x_dist = self.board[most_entries_row][x - 1][0] - self.board[most_entries_row][x][0]
+        spots_over = round(x_dist / self.most_common_dist) 
+        y_disp = self.board[most_entries_row][x-1][1] - self.board[most_entries_row][x][1] 
+        displacement.append(abs(y_disp / spots_over))
+
+    if len(displacement) == 0: 
+      return 0
+    else: 
+      return sum(displacement) / len(displacement)
+
 
   def __row_juggle(self, stop_index): 
     bottom = 8
     if self.board[bottom][0][0] != None:
       print("Chessboard overflowing, input data must be cleaned more!")
-      raise RuntimeError("Error")
+      raise RuntimeError("Trying to add a ninth row")
 
     while bottom > stop_index: 
       self.board[bottom] = self.board[bottom - 1]
@@ -92,10 +156,10 @@ class Chessboard:
         if int(point[0]) == int(self.board[row_index][column_index][0]) and int(point[1]) == int(self.board[row_index][column_index][1]): 
           break
         else:
-          self.print()
+          self.visualize_board()
           print("Points too close together (potentially duplicates?)")
           print(point, self.board[row_index][column_index])
-          raise RuntimeError("Error")
+          raise RuntimeError("Points too close together")
           # sys.exit()
    
       if point[0] < self.board[row_index][column_index][0]: 
@@ -106,7 +170,6 @@ class Chessboard:
       column_index += 1
 
 
-  # currently doing the simple method. The more advanced method could be to do an average of distance to all neighbors
   def impute_points(self): 
     self.lowest_x, self.lowest_y = self.board[0][0]
     self.highest_y = 0
@@ -222,29 +285,28 @@ class Chessboard:
       first = 1
 
   def __find_avg_displacements(self): 
-    column_index = 0
-    row_index = 0
-    row_most_existing = 0
-    col_most_existing = 0
+    col_with_most_entries = None
+    row_with_most_entries = None
+    column_index = None
+    row_index = None
 
     # find column with most filled in values 
-    for column in range(9): 
-      col_current_existing = 0
-      row_current_existing = 0
+    for y in range(9): 
+      current_col_existing = 0
+      current_row_existing = 0
+      for x in range(9): 
+        if self.board[x][y][0] != None:
+          current_col_existing += 1
+        if self.board[y][x][1] != None: 
+          current_row_existing += 1
 
-      for row in range(9): 
-        if self.board[row][column][0] != None:
-          col_current_existing += 1
-        if self.board[column][row][1] != None: 
-          row_current_existing += 1
+      if col_with_most_entries == None or current_col_existing > col_with_most_entries: 
+        col_with_most_entries = current_col_existing
+        column_index = y
 
-      if col_current_existing > col_most_existing: 
-        col_most_existing = col_current_existing
-        column_index = column
-
-      if row_current_existing > row_most_existing: 
-        row_most_existing = row_current_existing
-        row_index = row
+      if row_with_most_entries == None or current_row_existing > row_with_most_entries: 
+        row_with_most_entries = current_row_existing
+        row_index = x
 
     x_disp = []
     y_disp = []

@@ -1,7 +1,8 @@
 import cv2 as cv
 import numpy as np 
 
-
+def within_threshold(distance, target, threshold) -> bool:
+  return distance >= target - threshold and distance <= target + threshold
 
 def is_kinda_vertical(line): 
    x1, y1, x2, y2 = line
