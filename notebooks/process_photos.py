@@ -44,10 +44,10 @@ def main():
           
           process_photo(image, file_name=file.name.removesuffix(".jpeg"))
   else: 
-    for file in Path(f"../data/raw").iterdir():
+    for file in Path(f"../data/testing/board_images").iterdir():
       print(f"{file.name}")
       if file.name.endswith(".jpg") or file.name.endswith(".jpeg"):
-        image = cv.imread(f"../data/raw/{file.name}")
+        image = cv.imread(f"../data/testing/board_images/{file.name}")
         process_photo(image, file_name=file.name.removesuffix(".jpeg"))
   return None
 
@@ -98,9 +98,9 @@ def process_photo(image, file_name: str):
     length = len(verified_points)
     verified_points = verify_neighbors(verified_points, clustered_corners, most_common_dist)
 
-  temp = image.copy()
-  draw_points(temp, verified_points)
-  write_image(temp, f"verified_{file_name}")
+  # temp = image.copy()
+  # draw_points(temp, verified_points)
+  # write_image(temp, f"verified_{file_name}")
 
   test = Chessboard(most_common_dist)
   try: 
@@ -113,7 +113,7 @@ def process_photo(image, file_name: str):
   # draw_points(image, test.get_corners())
   # write_image(image, f"corners-{file_name}")
 
-  write_image(adjust_perspective(image, test.get_corners()), f"../processed/cropped-{file_name}")
+  write_image(adjust_perspective(image, test.get_corners()), f"../testing/board_images/cropped-{file_name}")
 
 def adjust_perspective(image, corners, board=1640, buffer=75):
   size = board + 2 * buffer
