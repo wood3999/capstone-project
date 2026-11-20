@@ -28,14 +28,14 @@ class Chessboard:
     self.board = [[(None, None) for _ in range(9)] for _ in range(9)]
 
 
-  def print(self): 
+  def print(self) -> None: 
     for x in range(9):
       for y in range(9): 
         print("(", int(self.board[x][y][0]), ", ", int(self.board[x][y][1]), ")", sep="", end=" ")
       print()
 
 
-  def visualize_board(self): 
+  def visualize_board(self) -> None: 
     for x in range(9): 
       for y in range(9): 
         if self.board[x][y][0] == None: 
@@ -45,7 +45,7 @@ class Chessboard:
       print()
 
 
-  def add_points(self, points):
+  def add_points(self, points: tuple[tuple[float, float]]):
     lowest_point = points[0]
     index = 0
     for x, point in enumerate(points):
@@ -60,7 +60,7 @@ class Chessboard:
       self.__insert_in_row(point, self.__find_row(point))
 
     
-  def __find_row(self, point) -> int: 
+  def __find_row(self, point: tuple[float, float]) -> int: 
     row_index = 0
     while row_index < 9: 
       if self.board[row_index][0][1] == None:
@@ -85,7 +85,7 @@ class Chessboard:
     return row_index - 1
 
   # guess the next point's placement based on what we know so far
-  def __guess_next_points_y(self, row_index, point) -> float: 
+  def __guess_next_points_y(self, row_index: int, point: tuple[float, float]) -> float: 
     dist = None
    
     for x in range(9): 
@@ -132,7 +132,7 @@ class Chessboard:
       return sum(displacement) / len(displacement)
 
 
-  def __row_juggle(self, stop_index): 
+  def __row_juggle(self, stop_index: int) -> None: 
     bottom = 8
     if self.board[bottom][0][0] != None:
       print("Chessboard overflowing, input data must be cleaned more!")
@@ -145,7 +145,7 @@ class Chessboard:
     self.board[stop_index] = [(None, None) for _ in range(9)]
 
 
-  def __insert_in_row(self, point, row_index): 
+  def __insert_in_row(self, point:  tuple[float, float], row_index: int) -> None: 
     column_index = 0
     while column_index < 9: 
       if self.board[row_index][column_index][0] == None: 
@@ -170,7 +170,7 @@ class Chessboard:
       column_index += 1
 
 
-  def impute_points(self): 
+  def impute_points(self) -> None: 
     self.lowest_x, self.lowest_y = self.board[0][0]
     self.highest_y = 0
     self.highest_x = 0
@@ -196,7 +196,7 @@ class Chessboard:
     #   self.__impute_row(row) 
 
   
-  def __impute_point(self, row, column): 
+  def __impute_point(self, row: int, column: int) -> None: 
     nearest_col_index = self.__find_closest_horizontal(row, column) 
     nearest_row_index = self.__find_closest_vertical(row, column)
 
@@ -212,7 +212,7 @@ class Chessboard:
       self.board[row][column] = (x,y) 
 
 
-  def __find_closest_vertical(self, row, column) -> int: 
+  def __find_closest_vertical(self, row: int, column: int) -> int: 
     up = row - 1
     down = row + 1
     while True:
@@ -232,7 +232,7 @@ class Chessboard:
     return row_index
 
 
-  def __find_closest_horizontal(self, row, column) -> int: 
+  def __find_closest_horizontal(self, row: int, column: int) -> int: 
     left = column - 1
     right = column + 1
     while True:
@@ -252,7 +252,7 @@ class Chessboard:
     return col_index
  
 
-  def __shift_to_proper_spots(self, row_index): 
+  def __shift_to_proper_spots(self, row_index: int) -> None: 
     starting_index = 0 
     first = 0
 
@@ -284,7 +284,7 @@ class Chessboard:
         starting_index = 0 
       first = 1
 
-  def __find_avg_displacements(self): 
+  def __find_avg_displacements(self) -> None: 
     col_with_most_entries = None
     row_with_most_entries = None
     column_index = None
@@ -327,7 +327,7 @@ class Chessboard:
       self.avg_y_disp = sum(y_disp) / len(y_disp)
 
 # i do this row by row. Instead I could do this point by point, picking that point's nearest neighbor to impute it 
-  def __impute_row(self, row_index): 
+  def __impute_row(self, row_index: int) -> None: 
     for x in range(9): 
       if self.board[row_index][x][0] != None:
         first_filled_spot = x
@@ -346,11 +346,11 @@ class Chessboard:
         self.board[row_index][index + 1] = (x,y)
 
 
-  def get_corners(self): 
+  def get_corners(self) -> tuple[tuple[float, float]]: 
     return [self.board[0][0], self.board[0][8], self.board[8][8], self.board[8][0]]
 
 
-  def get_points(self): 
+  def get_points(self) -> tuple[tuple[float, float]]: 
     points = [] 
     for row in range(9): 
       for column in range(9): 

@@ -51,7 +51,7 @@ def main():
   return None
 
 
-def process_photo(image, file_name): 
+def process_photo(image, file_name: str): 
   kernel_size = 9
   grayscale = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
   blur = cv.GaussianBlur(grayscale, (kernel_size, kernel_size), 3)
@@ -112,7 +112,7 @@ def process_photo(image, file_name):
   draw_points(image, test.get_corners())
   write_image(image, f"corners-{file_name}")
 
-def verify_neighbors(verified_points, unverified_points, most_common_dist): 
+def verify_neighbors(verified_points: tuple[tuple[float, float]], unverified_points: tuple[tuple[float, float]], most_common_dist: float) -> tuple[tuple[float, float]]: 
   verified_and_buddies = verified_points.copy()
   for point_1 in verified_points:
     for point_2 in unverified_points:
@@ -129,10 +129,10 @@ def verify_neighbors(verified_points, unverified_points, most_common_dist):
 
   return verified_and_buddies
 
-def horizontal_or_vertical(point_1, point_2) -> bool: 
+def horizontal_or_vertical(point_1: tuple[float, float], point_2: tuple[float, float]) -> bool: 
   return (abs(point_1[0] - point_2[0]) < VERTICAL_HORIZONTAL_THRESHOLD or abs(point_1[1] - point_2[1]) < VERTICAL_HORIZONTAL_THRESHOLD)
 
-def find_most_common_dist(point_list) -> float: 
+def find_most_common_dist(point_list: tuple[tuple[float, float]]) -> float: 
   distance = []
   for point_1 in point_list: 
     for point_2 in point_list:
@@ -222,7 +222,7 @@ def find_points_from_lines(hough_lines):
   return [tuple(pts[labels == k].mean(axis=0).tolist()) for k in np.unique(labels)]
 
 
-def calculate_score(point, verified_points, most_common_dist, avg=False) -> float:
+def calculate_score(point: tuple[float, float], verified_points: tuple[tuple[float, float]], most_common_dist: float, avg=False) -> float:
   score = []
   for verified in verified_points: 
     if distance_to(point, verified) <= most_common_dist + DISTANCE_THRESHOLD and horizontal_or_vertical(point, verified):
